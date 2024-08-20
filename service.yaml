@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: spring-backend-service
+spec:
+  type: LoadBalancer
+  selector:
+    app: spring-backend
+  ports:
+    - protocol: TCP
+      port: 8093
+      targetPort: 8093

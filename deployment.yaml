@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spring-backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: spring-backend
+  template:
+    metadata:
+      labels:
+        app: spring-backend
+    spec:
+      containers:
+        - name: spring-backend
+          image: mohamedrouahi/medrouahiback:backAz
+          ports:
+            - containerPort: 8093
+          env:
+            - name: SPRING_DATA_MONGODB_URI
+              value: "mongodb+srv://mohamedrouahi4:Bu8nzYkUzwsDKN38@cluster0.dfybuno.mongodb.net/azure?retryWrites=true&w=majority"
