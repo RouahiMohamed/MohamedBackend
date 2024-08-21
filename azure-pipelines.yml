@@ -1,13 +1,11 @@
-# Maven
-# Build your Java project and run tests with Apache Maven.
-# Add steps that analyze code, save build artifacts, deploy, and more:
-# https://docs.microsoft.com/azure/devops/pipelines/languages/java
-
 trigger:
 - main
 
 pool:
   vmImage: ubuntu-latest
+
+variables:
+  imageVersion: $[counter(variables['Build.SourceBranchName'], 1)] # Incrémente automatiquement le numéro de version
 
 steps:
 - task: Maven@3
@@ -15,42 +13,44 @@ steps:
     mavenPomFile: 'pom.xml'
     mavenOptions: '-Xmx3072m'
     javaHomeOption: 'JDKVersion'
-    jdkVersionOption: '1.17' # Assurez-vous que cette version correspond à celle spécifiée dans votre pom.xml
+    jdkVersionOption: '1.17'
     jdkArchitectureOption: 'x64'
     publishJUnitResults: true
     testResultsFiles: '**/surefire-reports/TEST-*.xml'
-    goals: 'package'
-- task: Maven@4
+    goals: 'clean install'
+
+- task: Maven@3
   inputs:
     mavenPomFile: 'pom.xml'
     goals: 'test'
     publishJUnitResults: true
     testResultsFiles: '**/surefire-reports/TEST-*.xml'
-    javaHomeOption: 'JDKVersion'
-    mavenVersionOption: 'Default'
-    mavenAuthenticateFeed: false
-    effectivePomSkip: false
-    sonarQubeRunAnalysis: false
-- task: Maven@4
+
+- task: Docker@2
+  displayName: 'Login to Docker Hub'
   inputs:
-    mavenPomFile: 'pom.xml'
-    goals: 'install'
-    publishJUnitResults: true
-    testResultsFiles: '**/surefire-reports/TEST-*.xml'
-    javaHomeOption: 'JDKVersion'
-    mavenVersionOption: 'Default'
-    mavenAuthenticateFeed: false
-    effectivePomSkip: false
-    sonarQubeRunAnalysis: false
-- task: ArchiveFiles@2
+    containerRegistry: 'docker' # Remplacez par le nom de votre connexion de service
+
+- task: Docker@2
+  displayName: 'Build and Push Docker Image'
   inputs:
-    rootFolderOrFile: '$(Build.BinariesDirectory)'
-    includeRootFolder: true
-    archiveType: 'zip'
-    archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
-    replaceExistingArchive: true
-- task: PublishBuildArtifacts@1
+    containerRegistry: 'docker' # Remplacez par le nom de votre connexion de service
+    repository: 'mohamedrouahi/spring-backend'
+    command: 'buildAndPush'
+    Dockerfile: '**/Dockerfile'
+    tags: '$(imageVersion)'
+
+- task: Kubernetes@1
+  displayName: 'Deploy to Kubernetes'
   inputs:
-    PathtoPublish: '$(Build.ArtifactStagingDirectory)'
-    ArtifactName: 'drop'
-    publishLocation: 'Container'
+    connectionType: 'Kubernetes Service Connection'
+    kubernetesServiceEndpoint: 'KubernetesConnection'
+    namespace: 'default'
+    command: 'apply'
+    useConfigurationFile: true
+    configuration: 'deployment.yaml'
+    arguments: '-n default -f deployment.yaml'
+
+- script: |
+    kubectl set image deployment/spring-backend spring-backend=mohamedrouahi/spring-backend:$(imageVersion) -n default
+  displayName: 'Update Kubernetes Deployment with New Image'
